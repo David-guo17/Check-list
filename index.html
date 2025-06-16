@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>緯創Rack參數檢驗</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 10px; }
+    .question { margin-bottom: 20px; }
+    .warning { color: red; font-weight: bold; margin-top: 5px; }
+    .range-info { font-size: 0.9em; color: #555; margin-top: 4px; }
+    input[type="number"] { width: 120px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; overflow-x: auto; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    button { margin-top: 20px; margin-right: 10px; }
+    .hidden { display: none; }
+    @media (max-width: 600px) {
+      table { display: block; overflow-x: auto; }
+      input[type="number"] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <h2>GB200 parameter checking</h2>
+
+  <form id="health-form">
+    <div id="question-list"></div>
+    <button type="submit">Submit</button>
+    <button type="button" onclick="restart()">Restart</button>
+  </form>
+
+  <button onclick="exportCSV()">匯出 CSV</button>
+
+  <div id="result-summary"></div>
+
+  <table id="result-table" class="hidden">
+    <thead>
+      <tr>
+        <th>題號</th>
+        <th>問題</th>
+        <th>輸入值</th>
+        <th>標準值</th>
+        <th>是否超出範圍</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const questions = [
+      ["Inlet temperature (°C)", 39.0, 41.0],
+      ["Oulet temperature (°C)", 45, 60],
+      ["Flow rate (LPM)", 4, 7.5],
+      ["dP (psi)", 1, 30],
+      ["Ambient (°C)", 20, 40],
+      ["Tray quantity (set)", 1, 18],
+      ["Valve Parameter1 (N/A)", 1, 100],
+      ["Valve Parameter2 (N/A)", 1, 100],
+      ["Valve Parameter3 (N/A)", 1, 100],
+      ["Valve Parameter4 (N/A)", 1, 100]
+    ];
+
+    let results = [];
+
+    function buildQuestions() {
+      const list = document.getElementById('question-list');
+      list.innerHTML = '';
+      questions.forEach(([text, min, max], index) => {
+        const div = document.createElement('div');
+        div.className = 'question';
+
+        const label = document.createElement('label');
+        label.textContent = `${index + 1}. ${text}`;
+        label.htmlFor = `q${index}`;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `q${index}`;
+        input.name = `q${index}`;
+        input.step = 'any';
+
+        const unit = text.match(/\((.*?)\)/)?.[1] || '';
+        const unitLabel = document.createElement('span');
+        unitLabel.textContent = ` ${unit}`;
+
+        const range = document.createElement('div');
+        range.className = 'range-info';
+        range.textContent = `標準值：${min} ～ ${max} ${unit}`;
+
+        div.appendChild(label);
+        div.appendChild(document.createElement('br'));
+        div.appendChild(input);
+        div.appendChild(unitLabel);
+        div.appendChild(range);
+
+        list.appendChild(div);
+      });
+    }
+
+    document.getElementById('health-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      results = [];
+
+      let isValid = true;
+
+      questions.forEach(([text, min, max], i) => {
+        const input = document.getElementById(`q${i}`);
+        const value = parseFloat(input.value);
+        const unit = text.match(/\((.*?)\)/)?.[1] || '';
+        let outOfRange = "否";
+
+        if (isNaN(value)) {
+          alert(`請輸入第 ${i + 1} 題的數值：${text}`);
+          isValid = false;
+          return;
+        }
+
+        if (value < min || value > max) {
+          outOfRange = "是";
+        }
+
+        results.push({
+          index: i + 1,
+          question: text,
+          value: value,
+          range: `${min}～${max} ${unit}`,
+          outOfRange: outOfRange
+        });
+      });
+
+      if (isValid) {
+        displayResults();
+      }
+    });
+
+    function displayResults() {
+      const tbody = document.querySelector('#result-table tbody');
+      tbody.innerHTML = '';
+      const table = document.getElementById('result-table');
+      table.classList.remove('hidden');
+
+      results.forEach(r => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${r.index}</td>
+            <td>${r.question}</td>
+            <td>${r.value}</td>
+            <td>${r.range}</td>
+            <td>${r.outOfRange}</td>
+          </tr>`;
+      });
+
+      const count = results.filter(r => r.outOfRange === "是").length;
+      document.getElementById('result-summary').innerHTML =
+        `<p>✅ 問卷填寫完成！您有 <strong>${count}</strong> 項超出正常範圍。</p>`;
+    }
+
+    function exportCSV() {
+      if (results.length === 0) return;
+      const header = ["題號", "問題", "輸入值", "標準值", "是否超出範圍"];
+      const rows = results.map(r => [r.index, r.question, r.value, r.range, r.outOfRange]);
+      const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "questionnaire_results.csv";
+      link.click();
+    }
+
+    function restart() {
+      document.getElementById('result-summary').innerHTML = '';
+      document.getElementById('result-table').classList.add('hidden');
+      results = [];
+      buildQuestions();
+    }
+
+    // 初始化
+    buildQuestions();
+  </script>
+</body>
+</html>
